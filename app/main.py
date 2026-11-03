@@ -5,15 +5,16 @@ from __future__ import annotations
 import json
 import os,time
 from datetime import datetime
+from typing import Literal
 
-from fastapi import FastAPI, Depends, HTTPException
-from sqlalchemy import select
+from fastapi import FastAPI, Depends, HTTPException,Query
+from sqlalchemy import func , select
 from sqlalchemy.orm import Session
 
 from app.db import Base, engine, get_db
 from app.models import Dataset, Run
 from app.qc_engine import run_qc
-from app.schemas import DatasetCreate, DatasetOut, RunCreate, RunOut
+from app.schemas import DatasetCreate, DatasetOut, RunCreate, RunOut,RunListOut
 
 app = FastAPI(title="qc-platform", version="0.1.0")
 
@@ -98,10 +99,18 @@ def create_run(payload: RunCreate, db: Session = Depends(get_db)):
     return row
 
 
-@app.get("/runs", response_model=list[RunOut])
-def list_runs(db: Session = Depends(get_db)):
-    rows = db.scalars(select(Run).order_by(Run.id)).all()
-    return rows
+@app.get("/runs", response_model=RunListOut)
+def list_runs(status : Literal["queued", "running", "succeeded", "failed"] | None = None,dataset_id:int | None = None,limit: int = Query( 10, ge=1,le=50),offset:int = Query(0,ge=0), db: Session = Depends(get_db)):
+    stmt = select(Run)
+    if status is not None:
+        stmt = stmt.where(Run.status == status)
+    if dataset_id is not None:
+        stmt = stmt.where(Run.dataset_id == dataset_id)
+    
+    total = db.scalar(select(func.count()).select_from(stmt.subquery()))
+    stmt = stmt.order_by(Run.id).limit(limit).offset(offset)
+    rows = db.scalars(stmt).all()
+    return {"items": rows, "total": total}
 
 
 @app.get("/runs/{run_id}", response_model=RunOut)

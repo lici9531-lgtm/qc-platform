@@ -31,3 +31,7 @@ class RunOut(BaseModel):
     finished_at: datetime | None
     rules_version: str | None = None
     input_sha256: str | None = None
+
+class RunListOut(BaseModel):
+    items: list[RunOut]
+    total: int
