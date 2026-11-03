@@ -1,0 +1,122 @@
+"""FastAPI 入口。五接口 + 同步质检状态机。"""
+
+from __future__ import annotations
+
+import json
+import os,time
+from datetime import datetime
+
+from fastapi import FastAPI, Depends, HTTPException
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.db import Base, engine, get_db
+from app.models import Dataset, Run
+from app.qc_engine import run_qc
+from app.schemas import DatasetCreate, DatasetOut, RunCreate, RunOut
+
+app = FastAPI(title="qc-platform", version="0.1.0")
+
+
+@app.on_event("startup")
+def on_startup():
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        stuck = db.scalars(
+            select(Run).where(Run.status.in_(["queued", "running"]))
+        ).all()
+        for row in stuck:
+            row.status = "failed"
+            row.error = "interrupted: service restarted before run finished"
+            row.finished_at = datetime.now()
+        db.commit()
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
+@app.post("/datasets", response_model=DatasetOut)
+def create_dataset(
+    payload: DatasetCreate,
+    db: Session = Depends(get_db),
+):
+    row = Dataset(
+        name=payload.name,
+        file_path=payload.file_path,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@app.post("/runs", response_model=RunOut)
+def create_run(payload: RunCreate, db: Session = Depends(get_db)):
+    dataset = db.get(Dataset, payload.dataset_id)
+    if not dataset:
+        raise HTTPException(status_code=404, detail="dataset not found")
+
+    # 开单
+    row = Run(dataset_id=payload.dataset_id, status="queued")
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+
+    # 开始跑
+    row.status = "running"
+    db.commit()
+
+    try:
+        slow = int(os.getenv("QC_DEMO_SLEEP", "0"))
+        if slow:
+            time.sleep(slow)
+        report = run_qc(dataset.file_path)
+        row.report_json = json.dumps(report, ensure_ascii=False)
+        row.rules_version = report.get("rules_version")
+        row.input_sha256 = report.get("input_sha256")
+
+        if report.get("error"):
+            # 质检函数认出了问题（如文件不存在）
+            row.status = "failed"
+            row.error = report["error"]
+        else:
+            row.status = "succeeded"
+            row.error = None
+
+        row.finished_at = datetime.now()
+    except Exception as e:
+        # 没预料到的崩溃
+        row.status = "failed"
+        row.error = str(e)
+        row.finished_at = datetime.now()
+
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@app.get("/runs", response_model=list[RunOut])
+def list_runs(db: Session = Depends(get_db)):
+    rows = db.scalars(select(Run).order_by(Run.id)).all()
+    return rows
+
+
+@app.get("/runs/{run_id}", response_model=RunOut)
+def get_run(run_id: int, db: Session = Depends(get_db)):
+    row = db.get(Run, run_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="run not found")
+    return row
+
+
+@app.get("/runs/{run_id}/report")
+def get_run_report(run_id: int, db: Session = Depends(get_db)):
+    row = db.get(Run, run_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="run not found")
+    if row.status != "succeeded" or not row.report_json:
+        raise HTTPException(status_code=409, detail="report not ready")
+    return json.loads(row.report_json)

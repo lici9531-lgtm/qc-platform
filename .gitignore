@@ -1,0 +1,60 @@
+# 密钥与 venv 永不入库
+# Secrets and virtualenvs must never be committed.
+
+# Python 虚拟环境
+venv/
+.venv/
+env/
+.env/
+
+# Python 字节码与缓存
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+*.egg-info/
+dist/
+build/
+
+# 环境变量（保留示例；真实密钥永不入库）
+.env
+.env.*
+!.env.example
+
+# IDE / 编辑器
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# 日志
+*.log
+logs/
+
+# 系统杂项
+.DS_Store
+Thumbs.db
+
+# 本地上传与运行时数据（勿入库）
+uploads/
+data/local/
+*.sql.gz
+*.sql.bak
+*.bak
+backups/
+
+# Docker volume 残留 / 本地 compose 覆盖（若含密钥）
+docker-compose.override.yml
+.docker/
+
+# 测试与临时文件
+tmp/
+temp/
+*.tmp

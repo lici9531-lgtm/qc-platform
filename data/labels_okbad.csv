@@ -1,0 +1,7 @@
+sample_id,label,confidence
+s1,ok,0.9
+s2,bad,0.8
+s3, Ok ,0.7
+s4,,0.6
+s5,cat,0.5
+s6,BAD,0.4

@@ -1,0 +1,75 @@
+# qc-platform — Docker Compose
+# 一次拉起（推荐）:
+#   cp .env.example .env
+#   docker compose up --build -d
+# 查看状态: docker compose ps
+# 日志:     docker compose logs -f
+# 停止:     docker compose down          # 保留命名 volume，数据不丢
+# 销毁数据: docker compose down -v       # 慎用：会删 mysql_data
+#
+# 当前 api 为 Dockerfile stub（待后端接入后替换）；db 为正式 MySQL 8。
+
+services:
+  db:
+    image: mysql:8
+    container_name: qc-platform-db
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      # 仅本地调试需要时映射；生产可去掉 host 端口
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      # 命名 volume：容器重启 / compose down（不加 -v）数据不丢
+      - mysql_data:/var/lib/mysql
+      # 后端落地后可挂载初始化脚本：
+      # - ./db/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    networks:
+      - qc-net
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: qc-platform-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      MYSQL_HOST: db
+      QC_DEMO_SLEEP: "0"
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE}
+      APP_HOST: ${APP_HOST:-0.0.0.0}
+      APP_PORT: ${APP_PORT:-8000}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      RULES_VERSION: ${RULES_VERSION:-v1}
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    volumes:
+      - ./data:/app/data:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    # stub 阶段一般无需挂载源码；本地热重载待后端接入后再加 volumes
+    networks:
+      - qc-net
+    # TODO(后端接入): 增加真实 healthcheck，例如 curl /health 或 /runs
+
+volumes:
+  mysql_data:
+    name: qc-platform-mysql-data
+
+networks:
+  qc-net:
+    name: qc-platform-net
