@@ -1,5 +1,5 @@
 # qc-platform API 镜像
-# 当前为 stub 阶段：待后端接入后替换 CMD / 入口；保证 docker compose build 可通。
+# 安装 requirements.txt 后以 uvicorn 启动 app.main:app（端口 8000）。
 FROM python:3.11-slim
 
 WORKDIR /app

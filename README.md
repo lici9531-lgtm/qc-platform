@@ -2,7 +2,7 @@
 
 一句话：用 FastAPI + MySQL 提供数据集与质检 run 的同步执行 API，经 Docker Compose 一键复现。
 
-> **Stub 状态**：当前 `Dockerfile` / `api` 为最小 HTTP stub，便于 Compose 拉起与运维演练；业务接口待后端接入后替换。密钥与 venv 永不入库。
+> 密钥与 venv 永不入库：只提交 `.env.example`。
 
 ## 前置
 
@@ -19,16 +19,18 @@ docker compose up --build -d  # 一次拉起 db + api
 docker compose ps             # 确认 db healthy、api 运行中
 ```
 
-健康检查 / curl 示例（**接口待后端就绪**；stub 仅返回占位 JSON）：
+健康检查与 curl 示例（演示数据在 `data/`，容器内路径为 `/app/data`）：
 
 ```bash
-curl -s http://127.0.0.1:8000/
-# 待后端接入后示例：
-# curl -s -X POST http://127.0.0.1:8000/datasets -H 'Content-Type: application/json' -d '{...}'
-# curl -s -X POST http://127.0.0.1:8000/runs -H 'Content-Type: application/json' -d '{...}'
-# curl -s http://127.0.0.1:8000/runs
-# curl -s http://127.0.0.1:8000/runs/{id}
-# curl -s http://127.0.0.1:8000/runs/{id}/report
+curl -s http://127.0.0.1:8000/health
+# 登记数据集，返回里的 id 记下来
+curl -s -X POST http://127.0.0.1:8000/datasets -H 'Content-Type: application/json' -d '{"name":"okbad","file_path":"/app/data/labels_okbad.csv"}'
+# 把 1 换成上一步返回的数据集 id
+curl -s -X POST http://127.0.0.1:8000/runs -H 'Content-Type: application/json' -d '{"dataset_id":1}'
+curl -s http://127.0.0.1:8000/runs
+# 把 1 换成上一步返回的 run id
+curl -s http://127.0.0.1:8000/runs/1
+curl -s http://127.0.0.1:8000/runs/1/report
 ```
 
 停止（保留数据）：
@@ -46,19 +48,19 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 # 确保 docker compose up -d db 已起，且 .env 中 MYSQL_HOST=127.0.0.1（本机连映射端口）
-# 待后端接入: uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ## 目录说明
 
 ```
 qc-platform/
-├── app/                 # 应用代码（待后端接入）
-├── db/                  # init_db.sql 等（待后端接入）
-├── sql/                 # schema / queries（待后端接入）
-├── tests/               # pytest（待后端接入）
+├── app/                 # FastAPI 入口、模型、规则（app/rules）
+├── db/                  # 预留（当前为空）
+├── sql/                 # 预留（当前为空）
+├── tests/               # pytest 用例
 ├── docs/                # 部署手册、演练记录、已知限制、运行步骤、环境变量、Git 规范
-├── Dockerfile           # 当前 stub；待后端接入后换真实 CMD
+├── Dockerfile           # api 镜像，CMD 为 uvicorn
 ├── docker-compose.yml   # db + api 一次拉起
 ├── requirements.txt
 ├── .env.example
@@ -66,7 +68,7 @@ qc-platform/
 └── README.md
 ```
 
-目标 API（章程，待后端接入）：`POST /datasets`、`POST /runs`、`GET /runs`、`GET /runs/{id}`、`GET /runs/{id}/report`。
+已实现 API：`GET /health`、`POST /datasets`、`POST /runs`、`GET /runs`、`GET /runs/{id}`、`GET /runs/{id}/report`。
 
 ## 重启与数据
 
