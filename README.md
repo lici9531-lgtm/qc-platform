@@ -27,7 +27,9 @@ curl -s http://127.0.0.1:8000/health
 curl -s -X POST http://127.0.0.1:8000/datasets -H 'Content-Type: application/json' -d '{"name":"okbad","file_path":"/app/data/labels_okbad.csv"}'
 # 把 1 换成上一步返回的数据集 id
 curl -s -X POST http://127.0.0.1:8000/runs -H 'Content-Type: application/json' -d '{"dataset_id":1}'
-curl -s http://127.0.0.1:8000/runs
+# 列表：可按 status / dataset_id 筛选，limit 默认 10、最大 50（超出返回 422），offset 默认 0，按 id 升序
+curl -s 'http://127.0.0.1:8000/runs?status=succeeded&limit=2&offset=0'
+# 返回 {"items": [...当前这一页的 run...], "total": 符合筛选条件的总数（分页前统计）}
 # 把 1 换成上一步返回的 run id
 curl -s http://127.0.0.1:8000/runs/1
 curl -s http://127.0.0.1:8000/runs/1/report
