@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os,time
+import logging
+
 from datetime import datetime
 from typing import Literal
 
@@ -18,6 +20,11 @@ from app.schemas import DatasetCreate, DatasetOut, RunCreate, RunOut,RunListOut
 
 app = FastAPI(title="qc-platform", version="0.1.0")
 
+logging.basicConfig(
+    level = os.getenv("LOG_LEVEL", "INFO"),
+    format = "%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 @app.on_event("startup")
 def on_startup():
@@ -28,10 +35,13 @@ def on_startup():
             select(Run).where(Run.status.in_(["queued", "running"]))
         ).all()
         for row in stuck:
+            old = row.status
             row.status = "failed"
             row.error = "interrupted: service restarted before run finished"
             row.finished_at = datetime.now()
+            logger.warning("run_id=%s dataset_id=%s from=%s to=%s error=%s", row.id,row.dataset_id,old,row.status,row.error)
         db.commit()
+        logger.warning("recovered count=%s",len(stuck))
 
 
 @app.get("/health")
@@ -65,11 +75,11 @@ def create_run(payload: RunCreate, db: Session = Depends(get_db)):
     db.add(row)
     db.commit()
     db.refresh(row)
-
+    logger.info("run_id=%s dataset_id=%s status=%s",row.id,payload.dataset_id,"queued")
     # 开始跑
     row.status = "running"
     db.commit()
-
+    logger.info("run_id=%s status=%s",row.id,"running")
     try:
         slow = int(os.getenv("QC_DEMO_SLEEP", "0"))
         if slow:
@@ -83,9 +93,11 @@ def create_run(payload: RunCreate, db: Session = Depends(get_db)):
             # 质检函数认出了问题（如文件不存在）
             row.status = "failed"
             row.error = report["error"]
+            logger.error("run_id=%s status=%s error=%s",row.id,"failed",row.error)
         else:
             row.status = "succeeded"
             row.error = None
+            logger.info("run_id=%s status=%s",row.id,"succeeded")
 
         row.finished_at = datetime.now()
     except Exception as e:
@@ -93,6 +105,7 @@ def create_run(payload: RunCreate, db: Session = Depends(get_db)):
         row.status = "failed"
         row.error = str(e)
         row.finished_at = datetime.now()
+        logger.error("run_id=%s status=%s error=%s",row.id,"failed",row.error)
 
     db.commit()
     db.refresh(row)
