@@ -113,7 +113,7 @@ def create_run(payload: RunCreate, db: Session = Depends(get_db)):
 
 
 @app.get("/runs", response_model=RunListOut)
-def list_runs(status : Literal["queued", "running", "succeeded", "failed"] | None = None,dataset_id:int | None = None,limit: int = Query( 10, ge=1,le=50),offset:int = Query(0,ge=0), db: Session = Depends(get_db)):
+def list_runs(status : Literal["queued", "running", "succeeded", "failed"] | None = None,order : Literal["asc", "desc"] = Query("asc"),dataset_id:int | None = None,limit: int = Query( 10, ge=1,le=50),offset:int = Query(0,ge=0), db: Session = Depends(get_db)):
     stmt = select(Run)
     if status is not None:
         stmt = stmt.where(Run.status == status)
@@ -121,7 +121,10 @@ def list_runs(status : Literal["queued", "running", "succeeded", "failed"] | Non
         stmt = stmt.where(Run.dataset_id == dataset_id)
     
     total = db.scalar(select(func.count()).select_from(stmt.subquery()))
-    stmt = stmt.order_by(Run.id).limit(limit).offset(offset)
+    if order =="asc":
+        stmt = stmt.order_by(Run.id).limit(limit).offset(offset)
+    else:
+        stmt = stmt.order_by(Run.id.desc()).limit(limit).offset(offset)
     rows = db.scalars(stmt).all()
     return {"items": rows, "total": total}
 
