@@ -1,0 +1,24 @@
+Script started on 2026-11-03 10:19:28+08:00 [TERM="xterm-256color" TTY="/dev/pts/4" COLUMNS="148" LINES="12"]
+[?2004h]0;hanxi@hanxi-MS-7B09: ~/qc-clone[01;32mhanxi@hanxi-MS-7B09[00m:[01;34m~/qc-clone[00m$ git log --oneline
+[?2004l[?1h=[33m575f7bf[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;33mtag: [m[1;33mv1.0[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m docs: 清理过时的 stub 说明，README 换成真实可用的 curl 示例[m
+[33m11e75c8[m 初始导入：FastAPI 质检服务 + Compose + pytest[m
+[K[?1l>[?2004h]0;hanxi@hanxi-MS-7B09: ~/qc-clone[01;32mhanxi@hanxi-MS-7B09[00m:[01;34m~/qc-clone[00m$ git tag
+[?2004l[?1h=v1.0[m
+[K[?1l>[?2004h]0;hanxi@hanxi-MS-7B09: ~/qc-clone[01;32mhanxi@hanxi-MS-7B09[00m:[01;34m~/qc-clone[00m$ docker compose ps
+[?2004lNAME              IMAGE          COMMAND                  SERVICE   CREATED          STATUS                    PORTS
+qc-platform-api   qc-clone-api   "uvicorn app.main:ap…"   api       26 minutes ago   Up 26 minutes             0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp
+qc-platform-db    mysql:8        "docker-entrypoint.s…"   db        26 minutes ago   Up 26 minutes (healthy)   0.0.0.0:3306->3306/tcp, [::]:3306->3306/tcp, 33060/tcp
+[?2004h]0;hanxi@hanxi-MS-7B09: ~/qc-clone[01;32mhanxi@hanxi-MS-7B09[00m:[01;34m~/qc-clone[00m$ curl - s http://127.0.0.1:8000/health
+[?2004lcurl: option -: is unknown
+curl: try 'curl --help' or 'curl --manual' for more information
+[?2004h]0;hanxi@hanxi-MS-7B09: ~/qc-clone[01;32mhanxi@hanxi-MS-7B09[00m:[01;34m~/qc-clone[00m$ curl -s http://127.0.0.1:8000/health
+[?2004l{"status":"ok"}[?2004h]0;hanxi@hanxi-MS-7B09: ~/qc-clone[01;32mhanxi@hanxi-MS-7B09[00m:[01;34m~/qc-clone[00m$ 
+[?2004l[?2004h]0;hanxi@hanxi-MS-7B09: ~/qc-clone[01;32mhanxi@hanxi-MS-7B09[00m:[01;34m~/qc-clone[00m$ [7mcurl -s -X POST http://127.0.0.1:8000/datasets -H "Content-Type: application/json" -d '{"name":"clone","file_path":"[27m[7m/[27m[7mapp/data/labels_okbad.csv"}'[27m[A]0;hanxi@hanxi-MS-7B09: ~/qc-clone[01;32mhanxi@hanxi-MS-7B09[00m:[01;34m~/qc-clone[00m$ curl -s -X POST http://127.0.0.1:8000/datasets -H "Content-Type: application/json" -d '{"name":"clone","file_path":"/app/data/labels_okbad.csv"}'
+[?2004l{"id":53,"name":"clone","file_path":"/app/data/labels_okbad.csv","created_at":"2026-11-03T02:21:12"}[?2004h]0;hanxi@hanxi-MS-7B09: ~/qc-clone[01;32mhanxi@hanxi-MS-7B09[00m:[01;34m~/qc-clone[00m$ 
+[?2004l[?2004h]0;hanxi@hanxi-MS-7B09: ~/qc-clone[01;32mhanxi@hanxi-MS-7B09[00m:[01;34m~/qc-clone[00m$ [7mcurl -s -X POST http://127.0.0.1:8000/runs -H "Content-Type: application/json" -d '{"dataset_id":53}'[27m[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[C[Ccurl -s -X POST http://127.0.0.1:8000/runs -H "Content-Type: application/json" -d '{"dataset_id":53}'
+[?2004l{"id":34,"dataset_id":53,"status":"succeeded","error":null,"created_at":"2026-11-03T02:21:57","finished_at":"2026-11-03T02:21:57","rules_version":"okbad-issues-v1","input_sha256":"b0d4fbd14f12f01a352994b948f713d584599077cdb235adcfcd60eb9d7d1aa0"}[?2004h]0;hanxi@hanxi-MS-7B09: ~/qc-clone[01;32mhanxi@hanxi-MS-7B09[00m:[01;34m~/qc-clone[00m$ 
+[?2004l[?2004h]0;hanxi@hanxi-MS-7B09: ~/qc-clone[01;32mhanxi@hanxi-MS-7B09[00m:[01;34m~/qc-clone[00m$ curl -s http://127.0.0.1:8000/runm[Ks/34/report
+[?2004l{"rules_version":"okbad-issues-v1","input_sha256":"b0d4fbd14f12f01a352994b948f713d584599077cdb235adcfcd60eb9d7d1aa0","summary":{"total_rows":6,"missing_label":1,"illegal_label":1,"duplicate_sample_id":0,"excessive_repeat":0},"issues":[{"sample_id":"s4","verdict":"confirmed","row_index":3,"column":"label","type":"missing_label","value":""},{"sample_id":"s5","verdict":"confirmed","row_index":4,"column":"label","type":"illegal_label","value":"cat"}],"error":null}[?2004h]0;hanxi@hanxi-MS-7B09: ~/qc-clone[01;32mhanxi@hanxi-MS-7B09[00m:[01;34m~/qc-clone[00m$ exit
+[?2004lexit
+
+Script done on 2026-11-03 10:22:43+08:00 [COMMAND_EXIT_CODE="0"]
