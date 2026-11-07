@@ -3,10 +3,12 @@
 from __future__ import annotations
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
+from datetime import datetime, timezone
+from pydantic import field_validator
 
-# TODO: DatasetCreate / DatasetOut
-# TODO: RunCreate / RunOut
-# TODO: RunListOut（分页时用）
+
+
+
 class DatasetCreate(BaseModel):
     name: str | None = None
     file_path: str
@@ -17,6 +19,12 @@ class DatasetOut(BaseModel):
     name: str | None
     file_path: str
     created_at: datetime
+    @field_validator("created_at")
+    @classmethod
+    def mark_utc(cls, v: datetime | None) -> datetime | None:
+        if v is None:
+            return None
+        return v.replace(tzinfo=timezone.utc)
 
 class RunCreate(BaseModel):
     dataset_id: int
@@ -31,6 +39,12 @@ class RunOut(BaseModel):
     finished_at: datetime | None
     rules_version: str | None = None
     input_sha256: str | None = None
+    @field_validator("created_at", "finished_at")
+    @classmethod
+    def mark_utc(cls, v: datetime | None) -> datetime | None:
+        if v is None:
+            return None
+        return v.replace(tzinfo=timezone.utc)
 
 class RunListOut(BaseModel):
     items: list[RunOut]

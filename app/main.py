@@ -18,6 +18,7 @@ from app.db import Base, engine, get_db
 from app.models import Dataset, Run
 from app.qc_engine import run_qc
 from app.schemas import DatasetCreate, DatasetOut, RunCreate, RunOut,RunListOut
+from app.models import utc_now
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -31,7 +32,7 @@ async def lifespan(app: FastAPI):
             old = row.status
             row.status = "failed"
             row.error = "interrupted: service restarted before run finished"
-            row.finished_at = datetime.now()
+            row.finished_at = utc_now()
             logger.warning("run_id=%s dataset_id=%s from=%s to=%s error=%s", row.id,row.dataset_id,old,row.status,row.error)
         db.commit()
         logger.warning("recovered count=%s",len(stuck))
@@ -102,12 +103,12 @@ def create_run(payload: RunCreate, db: Session = Depends(get_db)):
             row.error = None
             logger.info("run_id=%s status=%s",row.id,"succeeded")
 
-        row.finished_at = datetime.now()
+        row.finished_at = utc_now()
     except Exception as e:
         # 没预料到的崩溃
         row.status = "failed"
         row.error = str(e)
-        row.finished_at = datetime.now()
+        row.finished_at = utc_now()
         logger.error("run_id=%s status=%s error=%s",row.id,"failed",row.error)
 
     db.commit()
