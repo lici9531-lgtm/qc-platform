@@ -6,6 +6,7 @@ import json
 import os,time
 import logging
 
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Literal
 
@@ -18,16 +19,8 @@ from app.models import Dataset, Run
 from app.qc_engine import run_qc
 from app.schemas import DatasetCreate, DatasetOut, RunCreate, RunOut,RunListOut
 
-app = FastAPI(title="qc-platform", version="0.1.0")
-
-logging.basicConfig(
-    level = os.getenv("LOG_LEVEL", "INFO"),
-    format = "%(asctime)s %(levelname)s %(name)s %(message)s",
-)
-logger = logging.getLogger(__name__)
-
-@app.on_event("startup")
-def on_startup():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
 
     with Session(engine) as db:
@@ -42,6 +35,16 @@ def on_startup():
             logger.warning("run_id=%s dataset_id=%s from=%s to=%s error=%s", row.id,row.dataset_id,old,row.status,row.error)
         db.commit()
         logger.warning("recovered count=%s",len(stuck))
+    yield
+app = FastAPI(title="qc-platform", version="0.1.0",lifespan=lifespan)
+
+logging.basicConfig(
+    level = os.getenv("LOG_LEVEL", "INFO"),
+    format = "%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+    
 
 
 @app.get("/health")
