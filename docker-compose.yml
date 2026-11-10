@@ -54,6 +54,7 @@ services:
       APP_PORT: ${APP_PORT:-8000}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       RULES_VERSION: ${RULES_VERSION:-v1}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
     ports:
       - "${APP_PORT:-8000}:8000"
     volumes:
@@ -61,10 +62,28 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     # 只读挂载 ./data 作为演示数据集；源码不挂载，改代码后需 docker compose up -d --build api
     networks:
       - qc-net
     # TODO: 为 api 增加 healthcheck（探 GET /health）
+
+  redis:
+    image: redis:7
+    container_name: qc-platform-redis
+    restart: unless-stopped
+    ports:
+      # 仅本地调试需要时映射到宿主机；容器之间走 qc-net 内的 6379，不依赖这个映射
+      - "${REDIS_HOST_PORT:-6379}:6379"
+    # 不给 volume：缓存丢了能从 MySQL 重建，重启即空正好符合「Redis 是副本不是正源」
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - qc-net
 
 volumes:
   mysql_data:
