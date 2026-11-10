@@ -15,6 +15,7 @@ from sqlalchemy import func , select
 from sqlalchemy.orm import Session
 
 from app.db import Base, engine, get_db
+from app import cache
 from app.models import Dataset, Run
 from app.qc_engine import run_qc
 from app.schemas import DatasetCreate, DatasetOut, RunCreate, RunOut,RunListOut
@@ -112,6 +113,11 @@ def create_run(payload: RunCreate, db: Session = Depends(get_db)):
         logger.error("run_id=%s status=%s error=%s",row.id,"failed",row.error)
 
     db.commit()
+
+    # 报告刚落库：主动失效（谁改数据谁清缓存）。删失败只记日志，不能让成功的工单变失败。
+    #   注意位置：必须是 db.commit() 之后——先落库，再清缓存，顺序反了会留下旧值
+    cache.delete_cached_report(row.id)
+
     db.refresh(row)
     return row
 
@@ -143,9 +149,22 @@ def get_run(run_id: int, db: Session = Depends(get_db)):
 
 @app.get("/runs/{run_id}/report")
 def get_run_report(run_id: int, db: Session = Depends(get_db)):
+    # ---- ① 先问缓存 ----
+    cached = cache.get_cached_report(run_id)
+    if cached is not None:
+        logger.info("run_id=%s report_cache=hit", run_id)
+        return json.loads(cached)
+    logger.info("run_id=%s report_cache=miss", run_id)
+
+    # ---- ② 未命中 / 缓存挂了：回源查库 ----
     row = db.get(Run, run_id)
     if not row:
         raise HTTPException(status_code=404, detail="run not found")
     if row.status != "succeeded" or not row.report_json:
         raise HTTPException(status_code=409, detail="report not ready")
+
+    # ---- ③ 查到报告：写回缓存再返回 ----
+    cache.set_cached_report(run_id, row.report_json)
+    # 注意：404 / 409 这两条分支绝不能写缓存
+
     return json.loads(row.report_json)
