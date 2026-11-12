@@ -12,6 +12,7 @@ from __future__ import annotations
 # TODO: from app.db import Base
 from datetime import datetime
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db import Base
 from datetime import datetime, timezone
@@ -51,7 +52,7 @@ class Run(Base):
     dataset_id: Mapped[int] = mapped_column(Integer, ForeignKey("datasets.id"), nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(200), nullable=False,index=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    report_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    report_json: Mapped[str | None] = mapped_column(LONGTEXT, nullable=True)
     rules_version: Mapped[str] = mapped_column(String(64), nullable=True)
     input_sha256: Mapped[str] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now)

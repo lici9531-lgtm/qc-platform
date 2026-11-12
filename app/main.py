@@ -157,14 +157,20 @@ def get_run_report(run_id: int, db: Session = Depends(get_db)):
     logger.info("run_id=%s report_cache=miss", run_id)
 
     # ---- ② 未命中 / 缓存挂了：回源查库 ----
-    row = db.get(Run, run_id)
-    if not row:
-        raise HTTPException(status_code=404, detail="run not found")
-    if row.status != "succeeded" or not row.report_json:
-        raise HTTPException(status_code=409, detail="report not ready")
+    lock = cache.get_report_lock(run_id)
+    with lock:
+        cached = cache.get_cached_report(run_id)
+        if cached is not None:
+            logger.info("run_id=%s report_cache=hit_after_wait", run_id)
+            return json.loads(cached)
+        row = db.get(Run, run_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="run not found")
+        if row.status != "succeeded" or not row.report_json:
+            raise HTTPException(status_code=409, detail="report not ready")
 
-    # ---- ③ 查到报告：写回缓存再返回 ----
-    cache.set_cached_report(run_id, row.report_json)
-    # 注意：404 / 409 这两条分支绝不能写缓存
+        # ---- ③ 查到报告：写回缓存再返回 ----
+        cache.set_cached_report(run_id, row.report_json)
+        # 注意：404 / 409 这两条分支绝不能写缓存
 
-    return json.loads(row.report_json)
+        return json.loads(row.report_json)

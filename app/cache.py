@@ -5,11 +5,13 @@
 #
 # 你需要在下面填空。每填一块，先在心里回答该块上方的问号。
 
-import logging
 import os
-
 import redis
+import logging
+import threading
 
+_report_locks: dict[int, threading.Lock] = {}
+_locks_guard = threading.Lock()
 
 # ---------------------------------------------------------------
 # 1. 客户端（模块级只建一次）
@@ -19,12 +21,13 @@ import redis
 #    ? host 从哪来？为什么不写死 "localhost"？
 # ---------------------------------------------------------------
 
-logger = logging.getLogger(__name__)
-
 REDIS_URL = os.getenv("REDIS_URL", "")
 
-# URL 为空就不建客户端：模块导入不能因为缓存没配好就崩掉整个应用
+# TODO: 在这里 import redis 并创建 client
+# client = ...
 client = redis.Redis.from_url(REDIS_URL, decode_responses=True) if REDIS_URL else None
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------
 # 2. TTL 从环境变量读，给默认值
@@ -44,6 +47,7 @@ REPORT_CACHE_TTL = int(os.getenv("REPORT_CACHE_TTL", "600"))
 
 def report_key(run_id: int) -> str:
     """把 run_id 转成缓存键。"""
+    
     return f"report:{run_id}"
 
 
@@ -57,14 +61,14 @@ def report_key(run_id: int) -> str:
 # ---------------------------------------------------------------
 
 def get_cached_report(run_id: int):
-    """返回缓存的报告字符串；未命中或出错一律返回 None。"""
     if client is None:
+        logger.debug("redis client is not initialized")
         return None
     try:
         key = report_key(run_id)
         return client.get(key)
     except Exception as e:
-        logger.warning("run_id=%s cache_get_failed err=%s", run_id, e)
+        logger.warning("run_id=%s cache_get_failed err=%s",run_id, e)
         return None
 
 
@@ -77,13 +81,15 @@ def get_cached_report(run_id: int):
 
 def set_cached_report(run_id: int, report_json: str) -> None:
     """把报告写进缓存，带 TTL。失败只记日志。"""
+    
     if client is None:
-        return
+        logger.debug("redis client is not initialized")
+        return 
     key = report_key(run_id)
     try:
         client.set(key, report_json, ex=REPORT_CACHE_TTL)
     except Exception as e:
-        logger.warning("run_id=%s cache_set_failed err=%s", run_id, e)
+        logger.warning("run_id=%s cache_set_failed err=%s",run_id, e)
 
 
 # ---------------------------------------------------------------
@@ -95,13 +101,15 @@ def set_cached_report(run_id: int, report_json: str) -> None:
 
 def delete_cached_report(run_id: int) -> None:
     """删掉某次 run 的报告缓存。失败只记日志。"""
+    
     if client is None:
-        return
+        logger.debug("redis client is not initialized")
+        return 
     key = report_key(run_id)
     try:
         client.delete(key)
     except Exception as e:
-        logger.warning("run_id=%s cache_delete_failed err=%s", run_id, e)
+        logger.warning("run_id=%s cache_delete_failed err=%s",run_id, e)
 
 
 # ---------------------------------------------------------------
@@ -113,7 +121,9 @@ def delete_cached_report(run_id: int) -> None:
 
 def cache_ping() -> bool:
     """Redis 可用返回 True，否则 False（不抛异常）。"""
+   
     if client is None:
+        logger.debug("redis client is not initialized")
         return False
     try:
         client.ping()
@@ -121,3 +131,10 @@ def cache_ping() -> bool:
     except Exception as e:
         logger.warning("cache_ping failed err=%s", e)
         return False
+
+
+def get_report_lock(run_id: int) -> threading.Lock:
+    with _locks_guard:
+        if run_id not in _report_locks:
+            _report_locks[run_id] = threading.Lock()
+        return _report_locks[run_id]
